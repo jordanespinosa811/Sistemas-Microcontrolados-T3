@@ -1,0 +1,81 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include "DHT.h"
+
+// WiFi
+const char* ssid = "TU_WIFI";
+const char* password = "TU_PASSWORD";
+
+// TagoIO
+const char* serverAddress = "https://api.tago.io/data";
+const char* tokenHeader = "TU_TOKEN_TAGO";
+
+// DHT
+#define DHTPIN 5
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE);
+
+WiFiClient wifiClient;
+HTTPClient http;
+
+void setup() {
+  Serial.begin(115200);
+
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi conectado");
+  Serial.println(WiFi.localIP());
+
+  dht.begin();
+}
+
+void loop() {
+  delay(2000);
+
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Error leyendo DHT");
+    return;
+  }
+
+  enviarDato("Humidity", h, "%");
+  delay(5000);
+
+  enviarDato("Temperature", t, "C");
+  delay(5000);
+}
+
+// Función para enviar datos a TagoIO
+void enviarDato(String variable, float valor, String unidad) {
+  if (WiFi.status() == WL_CONNECTED) {
+
+    HTTPClient http;
+
+    String json = "{";
+    json += "\"variable\":\"" + variable + "\",";
+    json += "\"value\":" + String(valor) + ",";
+    json += "\"unit\":\"" + unidad + "\"";
+    json += "}";
+
+    http.begin(serverAddress);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Device-Token", tokenHeader);
+
+    int httpCode = http.POST(json);
+
+    Serial.print("Enviado -> ");
+    Serial.println(json);
+    Serial.print("Código HTTP: ");
+    Serial.println(httpCode);
+
+    http.end();
+  }
+}
